@@ -1,177 +1,80 @@
-# Explainer for the TODO API
-
-**Instructions for the explainer author: Search for "todo" in this repository and update all the
-instances as appropriate. For the instances in `index.bs`, update the repository name, but you can
-leave the rest until you start the specification. Then delete the TODOs and this block of text.**
-
-This proposal is an early design sketch by [TODO: team] to describe the problem below and solicit
-feedback on the proposed solution. It has not been approved to ship in Chrome.
-
-TODO: Fill in the whole explainer template below using https://tag.w3.org/explainers/ as a
-reference. Look for [brackets].
-
-## Proponents
-
-- [Proponent team 1]
-- [Proponent team 2]
-- [etc.]
+# HSTS Tracking Prevention Explainer
 
 ## Participate
-- https://github.com/explainers-by-googlers/[your-repository-name]/issues
-- [Discussion forum]
+- https://github.com/explainers-by-googlers/HSTS-Tracking-Prevention/issues
 
-## Table of Contents [if the explainer is longer than one printed page]
+## Background
 
-<!-- Update this table of contents by running `npx doctoc README.md` -->
-<!-- START doctoc generated TOC please keep comment here to allow auto update -->
-<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+The HTTP Strict Transport Security (HSTS) response header field, specified by [RFC 6797](https://datatracker.ietf.org/doc/html/rfc6797), is a mechanism that sites can use to tell the browser not to load a host name over insecure HTTP but to instead use HTTPS. Once a hostname is saved the browser will always request any resources at that host over HTTPS.
 
-- [Introduction](#introduction)
-- [Goals](#goals)
-- [Non-goals](#non-goals)
-- [User research](#user-research)
-- [Use cases](#use-cases)
-  - [Use case 1](#use-case-1)
-  - [Use case 2](#use-case-2)
-- [[Potential Solution]](#potential-solution)
-  - [How this solution would solve the use cases](#how-this-solution-would-solve-the-use-cases)
-    - [Use case 1](#use-case-1-1)
-    - [Use case 2](#use-case-2-1)
-- [Detailed design discussion](#detailed-design-discussion)
-  - [[Tricky design choice #1]](#tricky-design-choice-1)
-  - [[Tricky design choice 2]](#tricky-design-choice-2)
-- [Considered alternatives](#considered-alternatives)
-  - [[Alternative 1]](#alternative-1)
-  - [[Alternative 2]](#alternative-2)
-- [Stakeholder Feedback / Opposition](#stakeholder-feedback--opposition)
-- [References & acknowledgements](#references--acknowledgements)
+### Terminology
+For this document the terms “HSTS registration”, or similar, means that an HTTP response includes a valid HSTS header and the browser saves the information to its HSTS cache.
 
-<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+## Problem
 
-## Introduction
+The browser now saves the presence of a host name on its internal HSTS cache. Since a host name is either present or not this is equivalent to a single bit of information, a boolean. 
 
-[The "executive summary" or "abstract".
-Explain in a few sentences what the goals of the project are,
-and a brief overview of how the solution works.
-This should be no more than 1-2 paragraphs.]
+Suppose that a third-party wanted to store 32-bits of information, enough to uniquely identify a user. That third-party could embed a script in, for example, a news site. That script would attempt to load 32 images from the third-party site all over HTTP.
+E.x.: http://bit0.example.com/image.jpg, http://bit1.example.com/image.jpg, …, http://bit31.example.com/image.jpg
 
-## Goals
+The server could then redirect a portion of those requests to HTTPS and return an HSTS header. Now the next time the user visits the news site and the third-party’s script tries to load the images, the user’s browser will make some requests to the HTTP version and the rest to the HTTPS version, essentially sending a 32-bit identifier back to the third-party. If the third-party’s script is used on multiple different sites then this gives the third-party the ability to track the user around the web.
 
-[What is the **end-user need** which this project aims to address? Make this section short, and
-elaborate in the Use cases section.]
+## Proposal
 
-## Non-goals
+We will only apply HSTS upgrades to top-level navigations.
 
-[If there are "adjacent" goals which may appear to be in scope but aren't,
-enumerate them here. This section may be fleshed out as your design progresses and you encounter necessary technical and other trade-offs.]
+By not applying HSTS upgrade to any sub-resources it will not be possible for the stored identity to be read unless the browser is navigated to every url, adding significant time and friction to any identification attempts. We will continue to accept both first and third-party HSTS registrations.
 
-## User research
+This proposal is an implementation of [What if HSTS only applied to top-level navigations?](https://github.com/mikewest/strict-navigation-security) 
 
-[If any user research has been conducted to inform your design choices,
-discuss the process and findings. User research should be more common than it is.]
+## Enablers
 
-## Use cases
+While this change could, by itself, reduce security for users we fortunately have a number of other behaviors working in our favor that greatly reduce any potential danger.
 
-[Describe in detail what problems end-users are facing, which this project is trying to solve. A
-common mistake in this section is to take a web developer's or server operator's perspective, which
-makes reviewers worry that the proposal will violate [RFC 8890, The Internet is for End
-Users](https://www.rfc-editor.org/rfc/rfc8890).]
+### Mixed Content Upgrading/Blocking
 
-### Use case 1
+Mixed content is insecure HTTP sub-resources being loaded on a secure HTTPS page.
 
-### Use case 2
+Since Chrome 81 we have been completely upgrading or blocking mixed content. Meaning that on secure pages HSTS is effectively obsolete for sub-resources.
 
-<!-- In your initial explainer, you shouldn't be attached or appear attached to any of the potential
-solutions you describe below this. -->
+### Automatic HTTPS Navigation Upgrades
 
-## [Potential Solution]
+In instances where a site hasn’t been added to the browser’s HSTS cache Chrome will still attempt to automatically upgrade the connection to HTTPS. See [Chromium Blog: Towards HTTPS by default](https://blog.chromium.org/2023/08/towards-https-by-default.html).
 
-[For each related element of the proposed solution - be it an additional JS method, a new object, a new element, a new concept etc., create a section which briefly describes it.]
+### HTTPS-First Mode
 
-```js
-// Provide example code - not IDL - demonstrating the design of the feature.
+Once enabled, [HTTPS-First Mode](https://blog.chromium.org/2023/08/towards-https-by-default.html) will prevent an active network attacker from silently downgrading a connection's security. This strengthens the security improvements offered by navigation upgrades which could otherwise be downgraded.
 
-// If this API can be used on its own to address a user need,
-// link it back to one of the scenarios in the goals section.
+### HTTPS Usage
 
-// If you need to show how to get the feature set up
-// (initialized, or using permissions, etc.), include that too.
-```
+HTTPS is now [widely used](https://transparencyreport.google.com/https/overview?hl=en) and the vast majority of pages are loaded over HTTPS. Coupled with HTTPS-First Mode and mixed content upgrading/blocking this means that the vast majority of pages do not need HSTS. 
 
-[Where necessary, provide links to longer explanations of the relevant pre-existing concepts and API.
-If there is no suitable external documentation, you might like to provide supplementary information as an appendix in this document, and provide an internal link where appropriate.]
+### SameSite cookies are scheme aware
 
-[If this is already specced, link to the relevant section of the spec.]
+Cookies with `SameSite=none` have required `Secure` since [Chrome 80](https://developers.google.com/search/blog/2020/01/get-ready-for-new-samesitenone-secure#chrome-enforcement-starting-in-february-2020) and the notion of “same-site” has considered the scheme since [Chrome 89](https://chromestatus.com/feature/5096179480133632) (for cookies).
 
-[If spec work is in progress, link to the PR or draft of the spec.]
+Both of these features help to limit the leakage of state between HTTP and HTTPS versions of a site.
 
-[If you have more potential solutions in mind, add ## Potential Solution 2, 3, etc. sections.]
+Looking forward, if [Origin-Bound Cookies](https://chromestatus.com/feature/4945698250293248) launches then the HTTP and HTTPS version of a site will have their cookies completely separated, preventing any kind of state leakage.
 
-### How this solution would solve the use cases
+## HTTP Top Level
 
-[If there are a suite of interacting APIs, show how they work together to solve the use cases described.]
+With our proposed solution, sub-resources within a page loaded over HTTP would have a degraded experience; these sub-resources would never be upgraded.
 
-#### Use case 1
+This could leave previously upgradable resources open to a MITM attack, potentially degrading the user’s security. Thankfully less than ~5% of pages are loaded via HTTP. Moreover an attacker can always arbitrarily alter a resource request over the top-level page’s HTTP connection. Overall the security impact is expected to be limited.
 
-[Description of the end-user scenario]
 
-```js
-// Sample code demonstrating how to use these APIs to address that scenario.
-```
+## Alternatives Considered 
+### Blocking Third-Party Registrations
 
-#### Use case 2
+This alternative would have prevented third-party resources from registering with the HSTS in order to limit tracking. Sub-resource requests would be eligible for an HSTS upgrade.
 
-[etc.]
+This option was not selected because Chrome mixed content upgrading/blocking means that HSTS upgrades have no meaningful effect on sub-resources and so this alternative provides no benefit.
 
-## Detailed design discussion
+### Partitioning
 
-### [Tricky design choice #1]
+This alternative would partition the HSTS cache entries by the top-level site. Doing so would limit any identity information to only the top-level site that it was originally set on, thus preventing tracking between sites.
 
-[Talk through the tradeoffs in coming to the specific design point you want to make.]
+This option was not selected because our proposed solution has comparable security benefits and allows HSTS registrations from third-parties to apply to any top-level navigations.
 
-```js
-// Illustrated with example code.
-```
 
-[This may be an open question,
-in which case you should link to any active discussion threads.]
-
-### [Tricky design choice 2]
-
-[etc.]
-
-## Considered alternatives
-
-[This should include as many alternatives as you can,
-from high level architectural decisions down to alternative naming choices.]
-
-### [Alternative 1]
-
-[Describe an alternative which was considered,
-and why you decided against it.]
-
-### [Alternative 2]
-
-[etc.]
-
-## Stakeholder Feedback / Opposition
-
-[Implementors and other stakeholders may already have publicly stated positions on this work. If you can, list them here with links to evidence as appropriate.]
-
-- [Implementor A] : Positive
-- [Stakeholder B] : No signals
-- [Implementor C] : Negative
-
-[If appropriate, explain the reasons given by other implementors for their concerns.]
-
-## References & acknowledgements
-
-[Your design will change and be informed by many people; acknowledge them in an ongoing way! It helps build community and, as we only get by through the contributions of many, is only fair.]
-
-[Unless you have a specific reason not to, these should be in alphabetical order.]
-
-Many thanks for valuable feedback and advice from:
-
-- [Person 1]
-- [Person 2]
-- [etc.]
