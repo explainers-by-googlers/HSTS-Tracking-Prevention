@@ -82,5 +82,5 @@ This option was not selected because our proposed solution has comparable securi
 Other browsers, Safari and Firefox, have previously implemented their own version of HSTS tracking preventions. While these designs differ from ours, they nonetheless informed our approach.
  
 * WebKit - [Protecting Against HSTS Abuse | WebKit](https://webkit.org/blog/8146/protecting-against-hsts-abuse/)
-* Mozilla - [Bug 1701192 - don't allow third-party loads to set HSTS state](https://hg.mozilla.org/integration/autoland/rev/9bae0f6ea847) 
+* Mozilla - [Bug 1701192 - don't allow third-party loads to set HSTS state](https://bugzilla.mozilla.org/show_bug.cgi?id=1701192) 
 
